@@ -17,6 +17,7 @@ const userSchema = new Schema(
 
     customer_id: {
       type: Number,
+      unique: true, // Menjamin customer_id unik
     },
 
     email: {
@@ -30,10 +31,9 @@ const userSchema = new Schema(
           const EMAIL_RE = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
           if (!EMAIL_RE.test(value)) return false;
 
-          // Pastikan email unik hanya saat membuat user baru
           if (this.isNew) {
-            const count = await this.model("User").countDocuments({ email: value });
-            return count === 0;
+            const existingUser = await this.model("User").findOne({ email: value });
+            return !existingUser;
           }
           return true;
         },
@@ -45,6 +45,13 @@ const userSchema = new Schema(
       type: String,
       required: [true, "Password harus diisi"],
       maxlength: [255, "Panjang password maksimal 255 karakter"],
+      validate: {
+        validator: function (value) {
+          const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{6,}$/;
+          return passwordRegex.test(value);
+        },
+        message: "Password harus mengandung setidaknya 6 karakter, dengan angka dan huruf",
+      },
     },
 
     role: {
@@ -65,6 +72,11 @@ userSchema.pre("save", async function (next) {
   }
   next();
 });
+
+// Membuat metode untuk memverifikasi password
+userSchema.methods.isValidPassword = async function (password) {
+  return await bcrypt.compare(password, this.password);
+};
 
 userSchema.plugin(AutoIncrement, { inc_field: "customer_id" });
 
